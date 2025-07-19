@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Users, TrendingUp, Play, AlertCircle, Check, X, Edit2, Trash2, UserPlus, Save } from 'lucide-react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = (process.env.REACT_APP_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 const API_TOKEN = process.env.REACT_APP_API_TOKEN || 'your-secret-key';
 
 const Dashboard = () => {
