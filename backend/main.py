@@ -67,6 +67,9 @@ class DashboardStats(BaseModel):
     total_hours_added_this_week: float
     total_hours_added_this_month: float
 
+class AddEmployeeRequest(BaseModel):
+    employee_id: str
+
 # Database connection
 @asynccontextmanager
 async def get_db():
@@ -212,8 +215,13 @@ async def get_employees(token: str = Depends(verify_token)):
         return [Employee(**dict(row)) for row in rows]
 
 @app.post("/api/employees", response_model=Employee)
-async def add_employee(employee_id: str, token: str = Depends(verify_token)):
+async def add_employee(
+    request: AddEmployeeRequest,  # <-- Zmiana tutaj
+    token: str = Depends(verify_token)
+):
     """Dodaje pracownika do systemu"""
+    employee_id = request.employee_id  # <-- Pobieramy z body
+    
     # Pobierz dane z Everhour API
     headers = {"X-Api-Key": EVERHOUR_API_KEY}
     response = requests.get(f"{BASE_URL}/users/{employee_id}", headers=headers)
