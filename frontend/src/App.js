@@ -5,7 +5,14 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const API_TOKEN = process.env.REACT_APP_API_TOKEN || 'your-secret-key';
 
 const Dashboard = () => {
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState({
+    total_employees: 0,
+    active_employees: 0,
+    last_run: null,
+    next_run: null,
+    total_hours_added_this_week: 0,
+    total_hours_added_this_month: 0
+  });
   const [employees, setEmployees] = useState([]);
   const [config, setConfig] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -30,10 +37,30 @@ const Dashboard = () => {
         fetch(`${API_URL}/api/logs?limit=50`, { headers })
       ]);
 
-      setStats(await statsRes.json());
-      setEmployees(await employeesRes.json());
-      setConfig(await configRes.json());
-      setLogs(await logsRes.json());
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setStats({
+          total_employees: statsData.total_employees || 0,
+          active_employees: statsData.active_employees || 0,
+          last_run: statsData.last_run || null,
+          next_run: statsData.next_run || null,
+          total_hours_added_this_week: statsData.total_hours_added_this_week || 0,
+          total_hours_added_this_month: statsData.total_hours_added_this_month || 0
+        });
+      }
+      
+      if (employeesRes.ok) {
+        setEmployees(await employeesRes.json());
+      }
+      
+      if (configRes.ok) {
+        setConfig(await configRes.json());
+      }
+      
+      if (logsRes.ok) {
+        setLogs(await logsRes.json());
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -67,6 +94,7 @@ const Dashboard = () => {
       }
     } catch (error) {
       console.error('Error adding employee:', error);
+      alert('Błąd połączenia z serwerem.');
     }
   };
 
@@ -234,7 +262,7 @@ const Dashboard = () => {
               <div className="bg-white p-6 rounded-lg shadow">
                 <div className="flex items-center justify-between mb-4">
                   <TrendingUp className="w-8 h-8 text-purple-600" />
-                  <span className="text-2xl font-bold">+{stats.total_hours_added_this_week.toFixed(1)}h</span>
+                  <span className="text-2xl font-bold">+{(stats.total_hours_added_this_week || 0).toFixed(1)}h</span>
                 </div>
                 <p className="text-gray-600">Dodane ten tydzień</p>
               </div>
@@ -242,7 +270,7 @@ const Dashboard = () => {
               <div className="bg-white p-6 rounded-lg shadow">
                 <div className="flex items-center justify-between mb-4">
                   <Calendar className="w-8 h-8 text-orange-600" />
-                  <span className="text-2xl font-bold">+{stats.total_hours_added_this_month.toFixed(1)}h</span>
+                  <span className="text-2xl font-bold">+{(stats.total_hours_added_this_month || 0).toFixed(1)}h</span>
                 </div>
                 <p className="text-gray-600">Dodane ten miesiąc</p>
               </div>
@@ -462,13 +490,13 @@ const Dashboard = () => {
                         {log.employee_name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {log.original_hours.toFixed(2)}h
+                        {(log.original_hours || 0).toFixed(2)}h
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {log.updated_hours.toFixed(2)}h
+                        {(log.updated_hours || 0).toFixed(2)}h
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
-                        +{(log.updated_hours - log.original_hours).toFixed(2)}h
+                        +{((log.updated_hours || 0) - (log.original_hours || 0)).toFixed(2)}h
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
