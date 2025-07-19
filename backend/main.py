@@ -224,7 +224,7 @@ async def add_employee(
     
     # Pobierz dane z Everhour API
     headers = {"X-Api-Key": EVERHOUR_API_KEY}
-    response = requests.get(f"{BASE_URL}/users/{employee_id}", headers=headers)
+    response = requests.get(f"{BASE_URL}/team/users/{employee_id}", headers=headers)
     
     if response.status_code != 200:
         raise HTTPException(status_code=404, detail="Employee not found in Everhour")
