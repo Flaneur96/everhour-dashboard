@@ -130,7 +130,6 @@ async def init_db():
             ON CONFLICT (id) DO NOTHING
         ''')
 
-# Custom CORS Middleware
 class CustomCORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         # Handle preflight
@@ -145,8 +144,23 @@ class CustomCORSMiddleware(BaseHTTPMiddleware):
                 }
             )
         
-        # Process request
-        response = await call_next(request)
+        try:
+            # Process request
+            response = await call_next(request)
+        except Exception as e:
+            # Log the error
+            logger.error(f"Error processing request: {e}")
+            # Return error response with CORS headers
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error"},
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Credentials": "true",
+                }
+            )
         
         # Add CORS headers to all responses
         response.headers["Access-Control-Allow-Origin"] = "*"
@@ -370,22 +384,35 @@ async def get_logs(
     token: str = Depends(verify_token)
 ):
     """Pobiera logi operacji"""
-    async with get_db() as conn:
-        query = "SELECT * FROM operation_logs"
-        params = []
-        
-        if employee_id:
-            query += " WHERE employee_id = $1"
-            params.append(employee_id)
-        
-        query += " ORDER BY created_at DESC LIMIT $%d OFFSET $%d" % (
-            len(params) + 1,
-            len(params) + 2
-        )
-        params.extend([limit, offset])
-        
-        rows = await conn.fetch(query, *params)
-        return [OperationLog(**dict(row)) for row in rows]
+    try:
+        async with get_db() as conn:
+            query = "SELECT * FROM operation_logs"
+            params = []
+            
+            if employee_id:
+                query += " WHERE employee_id = $1"
+                params.append(employee_id)
+            
+            query += " ORDER BY created_at DESC LIMIT $%d OFFSET $%d" % (
+                len(params) + 1,
+                len(params) + 2
+            )
+            params.extend([limit, offset])
+            
+            rows = await conn.fetch(query, *params)
+            
+            # Konwertuj date objects na stringi
+            logs = []
+            for row in rows:
+                log_dict = dict(row)
+                if log_dict.get('date') and hasattr(log_dict['date'], 'isoformat'):
+                    log_dict['date'] = log_dict['date'].isoformat()
+                logs.append(OperationLog(**log_dict))
+            
+            return logs
+    except Exception as e:
+        logger.error(f"Error in get_logs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/trigger-update")
 async def trigger_manual_update(
