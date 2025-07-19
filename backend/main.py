@@ -1,3 +1,4 @@
+from fastapi import Request, Response
 from fastapi import FastAPI, HTTPException, Depends, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
@@ -134,10 +135,12 @@ app = FastAPI(title="Everhour Time Multiplier Dashboard API")
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # W produkcji ustaw konkretne domeny
+    allow_origins=["*"],  # W produkcji zmień na konkretne domeny
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600
 )
 
 @app.on_event("startup")
