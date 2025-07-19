@@ -143,6 +143,17 @@ app.add_middleware(
     max_age=3600
 )
 
+@app.options("/{path:path}")
+async def options_handler(request: Request):
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
 @app.on_event("startup")
 async def startup_event():
     """Inicjalizacja przy starcie"""
