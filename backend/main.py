@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, Security, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
@@ -129,33 +130,46 @@ async def init_db():
             ON CONFLICT (id) DO NOTHING
         ''')
 
+# Custom CORS Middleware
+class CustomCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        # Handle preflight
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=200,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Credentials": "true",
+                }
+            )
+        
+        # Process request
+        response = await call_next(request)
+        
+        # Add CORS headers to all responses
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        
+        return response
+
 # FastAPI app
 app = FastAPI(title="Everhour Time Multiplier Dashboard API")
 
-# CORS
+# Add custom CORS middleware FIRST
+app.add_middleware(CustomCORSMiddleware)
+
+# Then add standard CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # W produkcji zmień na konkretne domeny
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600
 )
-
-# Global OPTIONS handler
-@app.options("/{path:path}")
-async def options_handler():
-    return JSONResponse(
-        content={},
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "*",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Credentials": "true"
-        }
-    )
 
 @app.on_event("startup")
 async def startup_event():
@@ -242,7 +256,7 @@ async def add_employee(
     # Pobierz dane z Everhour API
     headers = {"X-Api-Key": EVERHOUR_API_KEY}
     
-    # POPRAWKA: Użyj /team/users/{id} zamiast /users/{id}
+    # Użyj /team/users/{id} zamiast /users/{id}
     response = requests.get(f"{BASE_URL}/team/users/{employee_id}", headers=headers)
     
     if response.status_code != 200:
@@ -346,8 +360,6 @@ async def update_config(config: SystemConfig, token: str = Depends(verify_token)
             config.dry_run
         )
         
-        # TODO: Tutaj możesz dodać logikę do restartu głównego skryptu z nowymi ustawieniami
-        
         return SystemConfig(**dict(row))
 
 @app.get("/api/logs", response_model=List[OperationLog])
@@ -383,37 +395,41 @@ async def trigger_manual_update(
 ):
     """Ręcznie uruchamia aktualizację"""
     
-    # Zapisz request do logów
-    async with get_db() as conn:
-        await conn.execute(
-            """
-            INSERT INTO operation_logs (employee_id, employee_name, date, original_hours, updated_hours, status)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            """,
-            employee_id or 'ALL',
-            'Manual Trigger',
-            date or datetime.now().strftime('%Y-%m-%d'),
-            0,
-            0,
-            'manual_trigger'
-        )
+    # Konwertuj string na date object
+    if date:
+        try:
+            date_obj = datetime.strptime(date, '%Y-%m-%d').date()
+        except:
+            date_obj = datetime.now().date()
+    else:
+        date_obj = datetime.now().date()
     
-    # Zwróć odpowiedź z nagłówkami CORS
-    return JSONResponse(
-        content={
-            "message": "Manual update requested",
-            "employee_id": employee_id,
-            "date": date,
-            "instruction": "Worker will process this on next scheduled run"
-        },
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "*"
-        }
-    )
+    # Zapisz request do logów
+    try:
+        async with get_db() as conn:
+            await conn.execute(
+                """
+                INSERT INTO operation_logs (employee_id, employee_name, date, original_hours, updated_hours, status)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                employee_id or 'ALL',
+                'Manual Trigger',
+                date_obj,
+                0.0,
+                0.0,
+                'manual_trigger'
+            )
+    except Exception as e:
+        logger.error(f"Error saving log: {e}")
+    
+    # Zwróć odpowiedź
+    return {
+        "message": "Manual update requested",
+        "employee_id": employee_id,
+        "date": str(date_obj),
+        "instruction": "Worker will process this on next scheduled run"
+    }
 
-# Endpoint do zapisywania logów z głównego skryptu
 @app.post("/api/logs/record")
 async def record_operation(log: OperationLog, token: str = Depends(verify_token)):
     """Zapisuje log operacji (wywoływane przez główny skrypt)"""
