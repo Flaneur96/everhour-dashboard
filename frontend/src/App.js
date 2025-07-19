@@ -74,29 +74,33 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Add employee
-  const addEmployee = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/employees?employee_id=${newEmployeeId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${API_TOKEN}`,
-          'Content-Type': 'application/json'
-        }
-      });
 
-      if (response.ok) {
-        setShowAddEmployee(false);
-        setNewEmployeeId('');
-        fetchData();
-      } else {
-        alert('Nie można dodać pracownika. Sprawdź ID.');
-      }
-    } catch (error) {
-      console.error('Error adding employee:', error);
-      alert('Błąd połączenia z serwerem.');
+  // W funkcji addEmployee zamień:
+
+const addEmployee = async () => {
+  try {
+    const response = await fetch(`${API_URL}/api/employees`, {  // <-- BEZ query params
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${API_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ employee_id: newEmployeeId })  // <-- employee_id w body
+    });
+
+    if (response.ok) {
+      setShowAddEmployee(false);
+      setNewEmployeeId('');
+      fetchData();
+    } else {
+      const error = await response.json();
+      alert(`Nie można dodać pracownika: ${error.detail || 'Sprawdź ID.'}`);
     }
-  };
+  } catch (error) {
+    console.error('Error adding employee:', error);
+    alert('Błąd połączenia z serwerem.');
+  }
+};
 
   // Update employee
   const updateEmployee = async (id, updates) => {
