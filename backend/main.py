@@ -355,12 +355,30 @@ async def trigger_manual_update(
     token: str = Depends(verify_token)
 ):
     """Ręcznie uruchamia aktualizację"""
-    # TODO: Implementacja komunikacji z głównym skryptem
-    # Możesz użyć Redis Queue, Celery lub prostego HTTP call
+    # Opcja 1: Uruchom przez Railway API (wymaga Railway API Token)
+    # Opcja 2: Użyj webhooków
+    # Opcja 3: Najprostsza - zwróć instrukcje
+    
+    # Zapisz request do logów
+    async with get_db() as conn:
+        await conn.execute(
+            """
+            INSERT INTO operation_logs (employee_id, employee_name, date, original_hours, updated_hours, status)
+            VALUES ($1, $2, $3, 0, 0, 'manual_trigger')
+            """,
+            employee_id or 'ALL',
+            'Manual Trigger',
+            date or datetime.now().strftime('%Y-%m-%d'),
+            0,
+            0,
+            'manual_trigger'
+        )
+    
     return {
-        "message": "Update triggered",
+        "message": "Manual update requested",
         "employee_id": employee_id,
-        "date": date
+        "date": date,
+        "instruction": "Worker will process this on next scheduled run, or restart worker with MANUAL_TRIGGER=true"
     }
 
 # Endpoint do zapisywania logów z głównego skryptu
