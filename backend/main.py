@@ -1,7 +1,7 @@
-from fastapi import Request, Response
-from fastapi import FastAPI, HTTPException, Depends, Security
+from fastapi import FastAPI, HTTPException, Depends, Security, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
@@ -143,14 +143,17 @@ app.add_middleware(
     max_age=3600
 )
 
+# Global OPTIONS handler
 @app.options("/{path:path}")
-async def options_handler(request: Request):
-    return Response(
+async def options_handler():
+    return JSONResponse(
+        content={},
         status_code=200,
         headers={
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Methods": "*",
             "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true"
         }
     )
 
@@ -230,14 +233,16 @@ async def get_employees(token: str = Depends(verify_token)):
 
 @app.post("/api/employees", response_model=Employee)
 async def add_employee(
-    request: AddEmployeeRequest,  # <-- Zmiana tutaj
+    request: AddEmployeeRequest,
     token: str = Depends(verify_token)
 ):
     """Dodaje pracownika do systemu"""
-    employee_id = request.employee_id  # <-- Pobieramy z body
+    employee_id = request.employee_id
     
     # Pobierz dane z Everhour API
     headers = {"X-Api-Key": EVERHOUR_API_KEY}
+    
+    # POPRAWKA: Użyj /team/users/{id} zamiast /users/{id}
     response = requests.get(f"{BASE_URL}/team/users/{employee_id}", headers=headers)
     
     if response.status_code != 200:
@@ -377,16 +382,13 @@ async def trigger_manual_update(
     token: str = Depends(verify_token)
 ):
     """Ręcznie uruchamia aktualizację"""
-    # Opcja 1: Uruchom przez Railway API (wymaga Railway API Token)
-    # Opcja 2: Użyj webhooków
-    # Opcja 3: Najprostsza - zwróć instrukcje
     
     # Zapisz request do logów
     async with get_db() as conn:
         await conn.execute(
             """
             INSERT INTO operation_logs (employee_id, employee_name, date, original_hours, updated_hours, status)
-            VALUES ($1, $2, $3, 0, 0, 'manual_trigger')
+            VALUES ($1, $2, $3, $4, $5, $6)
             """,
             employee_id or 'ALL',
             'Manual Trigger',
@@ -396,12 +398,20 @@ async def trigger_manual_update(
             'manual_trigger'
         )
     
-    return {
-        "message": "Manual update requested",
-        "employee_id": employee_id,
-        "date": date,
-        "instruction": "Worker will process this on next scheduled run, or restart worker with MANUAL_TRIGGER=true"
-    }
+    # Zwróć odpowiedź z nagłówkami CORS
+    return JSONResponse(
+        content={
+            "message": "Manual update requested",
+            "employee_id": employee_id,
+            "date": date,
+            "instruction": "Worker will process this on next scheduled run"
+        },
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*"
+        }
+    )
 
 # Endpoint do zapisywania logów z głównego skryptu
 @app.post("/api/logs/record")
