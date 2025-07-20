@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Users, TrendingUp, Play, AlertCircle, Check, X, Edit2, Trash2, UserPlus, Save } from 'lucide-react';
+import { Calendar, Clock, Users, TrendingUp, AlertCircle, Check, X, Edit2, Trash2, UserPlus, Save } from 'lucide-react';
 
 const API_URL = (process.env.REACT_APP_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 const API_TOKEN = process.env.REACT_APP_API_TOKEN || 'your-secret-key';
@@ -161,26 +161,6 @@ const addEmployee = async () => {
       }
     } catch (error) {
       console.error('Error updating config:', error);
-    }
-  };
-
-  // Manual trigger
-  const triggerUpdate = async () => {
-    if (!window.confirm('Czy na pewno chcesz ręcznie uruchomić aktualizację?')) return;
-
-    try {
-      const response = await fetch(`${API_URL}/api/trigger-update`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${API_TOKEN}`
-        }
-      });
-
-      if (response.ok) {
-        alert('Aktualizacja została uruchomiona!');
-      }
-    } catch (error) {
-      console.error('Error triggering update:', error);
     }
   };
 
