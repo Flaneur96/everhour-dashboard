@@ -72,6 +72,14 @@ class DashboardStats(BaseModel):
 class AddEmployeeRequest(BaseModel):
     employee_id: str
 
+class Backup(BaseModel):
+    id: Optional[int] = None
+    user_id: str
+    date: str
+    data: str
+    filename: str
+    created_at: Optional[datetime] = None
+
 # Database connection
 @asynccontextmanager
 async def get_db():
@@ -123,6 +131,18 @@ async def init_db():
             )
         ''')
         
+        # Tabela backupów
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS backups (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(50),
+                date DATE,
+                data TEXT,
+                filename VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
         # Domyślna konfiguracja
         await conn.execute('''
             INSERT INTO system_config (run_hour, run_minute, default_multiplier, dry_run)
@@ -130,6 +150,7 @@ async def init_db():
             ON CONFLICT (id) DO NOTHING
         ''')
 
+# Custom CORS Middleware
 class CustomCORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         # Handle preflight
@@ -479,14 +500,103 @@ async def record_operation(log: OperationLog, token: str = Depends(verify_token)
                 """,
                 log.employee_id,
                 log.employee_name,
-                date_obj,  # Używamy date object
-                float(log.original_hours),  # Upewnij się że to float
-                float(log.updated_hours),   # Upewnij się że to float
+                date_obj,
+                float(log.original_hours),
+                float(log.updated_hours),
                 log.status
             )
         return {"message": "Log recorded"}
     except Exception as e:
         logger.error(f"Error recording operation log: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Endpoint do zapisywania backupu
+@app.post("/api/backups")
+async def save_backup(backup: Backup, token: str = Depends(verify_token)):
+    """Zapisuje backup z workera"""
+    try:
+        async with get_db() as conn:
+            await conn.execute(
+                """
+                INSERT INTO backups (user_id, date, data, filename)
+                VALUES ($1, $2, $3, $4)
+                """,
+                backup.user_id,
+                datetime.strptime(backup.date, '%Y-%m-%d').date(),
+                backup.data,
+                backup.filename
+            )
+        return {"message": "Backup saved"}
+    except Exception as e:
+        logger.error(f"Error saving backup: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Endpoint do pobierania backupów
+@app.get("/api/backups")
+async def get_backups(
+    user_id: Optional[str] = None,
+    date: Optional[str] = None,
+    limit: int = 10,
+    token: str = Depends(verify_token)
+):
+    """Pobiera listę backupów"""
+    try:
+        async with get_db() as conn:
+            query = "SELECT id, user_id, date, filename, created_at FROM backups"
+            params = []
+            conditions = []
+            
+            if user_id:
+                conditions.append(f"user_id = ${len(params) + 1}")
+                params.append(user_id)
+            
+            if date:
+                conditions.append(f"date = ${len(params) + 1}")
+                params.append(datetime.strptime(date, '%Y-%m-%d').date())
+            
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+            
+            query += f" ORDER BY created_at DESC LIMIT ${len(params) + 1}"
+            params.append(limit)
+            
+            rows = await conn.fetch(query, *params)
+            result = []
+            for row in rows:
+                backup_dict = dict(row)
+                # Konwertuj date na string
+                if backup_dict.get('date') and hasattr(backup_dict['date'], 'isoformat'):
+                    backup_dict['date'] = backup_dict['date'].isoformat()
+                result.append(backup_dict)
+            return result
+    except Exception as e:
+        logger.error(f"Error getting backups: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Endpoint do pobrania konkretnego backupu
+@app.get("/api/backups/{backup_id}")
+async def get_backup(backup_id: int, token: str = Depends(verify_token)):
+    """Pobiera szczegóły backupu"""
+    try:
+        async with get_db() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM backups WHERE id = $1",
+                backup_id
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Backup not found")
+            
+            backup_data = dict(row)
+            # Konwertuj date na string
+            if backup_data.get('date') and hasattr(backup_data['date'], 'isoformat'):
+                backup_data['date'] = backup_data['date'].isoformat()
+            # Parse JSON data
+            backup_data['data'] = json.loads(backup_data['data'])
+            return backup_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting backup: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
