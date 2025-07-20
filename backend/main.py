@@ -460,20 +460,34 @@ async def trigger_manual_update(
 @app.post("/api/logs/record")
 async def record_operation(log: OperationLog, token: str = Depends(verify_token)):
     """Zapisuje log operacji (wywoływane przez główny skrypt)"""
-    async with get_db() as conn:
-        await conn.execute(
-            """
-            INSERT INTO operation_logs (employee_id, employee_name, date, original_hours, updated_hours, status)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            """,
-            log.employee_id,
-            log.employee_name,
-            log.date,
-            log.original_hours,
-            log.updated_hours,
-            log.status
-        )
+    try:
+        # Konwertuj date string na date object jeśli potrzeba
+        date_value = log.date
+        if isinstance(date_value, str):
+            try:
+                date_obj = datetime.strptime(date_value, '%Y-%m-%d').date()
+            except:
+                date_obj = datetime.now().date()
+        else:
+            date_obj = date_value
+        
+        async with get_db() as conn:
+            await conn.execute(
+                """
+                INSERT INTO operation_logs (employee_id, employee_name, date, original_hours, updated_hours, status)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                log.employee_id,
+                log.employee_name,
+                date_obj,  # Używamy date object
+                float(log.original_hours),  # Upewnij się że to float
+                float(log.updated_hours),   # Upewnij się że to float
+                log.status
+            )
         return {"message": "Log recorded"}
+    except Exception as e:
+        logger.error(f"Error recording operation log: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
