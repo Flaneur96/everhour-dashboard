@@ -74,33 +74,31 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Add employee
+  const addEmployee = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/employees`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${API_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ employee_id: newEmployeeId })
+      });
 
-  // W funkcji addEmployee zamień:
-
-const addEmployee = async () => {
-  try {
-    const response = await fetch(`${API_URL}/api/employees`, {  // <-- BEZ query params
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${API_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ employee_id: newEmployeeId })  // <-- employee_id w body
-    });
-
-    if (response.ok) {
-      setShowAddEmployee(false);
-      setNewEmployeeId('');
-      fetchData();
-    } else {
-      const error = await response.json();
-      alert(`Nie można dodać pracownika: ${error.detail || 'Sprawdź ID.'}`);
+      if (response.ok) {
+        setShowAddEmployee(false);
+        setNewEmployeeId('');
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(`Nie można dodać pracownika: ${error.detail || 'Sprawdź ID.'}`);
+      }
+    } catch (error) {
+      console.error('Error adding employee:', error);
+      alert('Błąd połączenia z serwerem.');
     }
-  } catch (error) {
-    console.error('Error adding employee:', error);
-    alert('Błąd połączenia z serwerem.');
-  }
-};
+  };
 
   // Update employee
   const updateEmployee = async (id, updates) => {
@@ -161,6 +159,26 @@ const addEmployee = async () => {
       }
     } catch (error) {
       console.error('Error updating config:', error);
+    }
+  };
+
+  // Manual trigger
+  const triggerUpdate = async () => {
+    if (!window.confirm('Czy na pewno chcesz ręcznie uruchomić aktualizację?')) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/trigger-update`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${API_TOKEN}`
+        }
+      });
+
+      if (response.ok) {
+        alert('Aktualizacja została uruchomiona!');
+      }
+    } catch (error) {
+      console.error('Error triggering update:', error);
     }
   };
 
@@ -503,7 +521,6 @@ const addEmployee = async () => {
                 updateConfig({
                   run_hour: parseInt(formData.get('run_hour')),
                   run_minute: parseInt(formData.get('run_minute')),
-                  default_multiplier: parseFloat(formData.get('default_multiplier')),
                   dry_run: formData.get('dry_run') === 'true'
                 });
               }}>
@@ -531,19 +548,6 @@ const addEmployee = async () => {
                         className="w-20 px-3 py-2 border rounded-md"
                       />
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Domyślny mnożnik
-                    </label>
-                    <input
-                      type="number"
-                      name="default_multiplier"
-                      step="0.1"
-                      defaultValue={config.default_multiplier}
-                      className="w-32 px-3 py-2 border rounded-md"
-                    />
                   </div>
 
                   <div>
