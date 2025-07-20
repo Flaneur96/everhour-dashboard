@@ -204,13 +204,6 @@ const addEmployee = async () => {
             <h1 className="text-3xl font-bold text-gray-900">
               Everhour Time Multiplier
             </h1>
-            <button
-              onClick={triggerUpdate}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
-            >
-              <Play className="w-4 h-4" />
-              Uruchom ręcznie
-            </button>
           </div>
         </div>
       </header>
