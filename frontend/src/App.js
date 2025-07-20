@@ -162,14 +162,6 @@ const Dashboard = () => {
     }
   };
 
-      if (response.ok) {
-        alert('Aktualizacja została uruchomiona!');
-      }
-    } catch (error) {
-      console.error('Error triggering update:', error);
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
