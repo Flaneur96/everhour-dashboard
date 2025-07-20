@@ -48,7 +48,6 @@ class UpdateEmployee(BaseModel):
 class SystemConfig(BaseModel):
     run_hour: int
     run_minute: int
-    default_multiplier: float
     dry_run: bool
 
 class OperationLog(BaseModel):
@@ -111,7 +110,6 @@ async def init_db():
                 id INTEGER PRIMARY KEY DEFAULT 1,
                 run_hour INTEGER DEFAULT 1,
                 run_minute INTEGER DEFAULT 0,
-                default_multiplier FLOAT DEFAULT 1.5,
                 dry_run BOOLEAN DEFAULT true,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -145,8 +143,8 @@ async def init_db():
         
         # Domyślna konfiguracja
         await conn.execute('''
-            INSERT INTO system_config (run_hour, run_minute, default_multiplier, dry_run)
-            VALUES (1, 0, 1.5, true)
+            INSERT INTO system_config (run_hour, run_minute, dry_run)
+            VALUES (1, 0, true)
             ON CONFLICT (id) DO NOTHING
         ''')
 
@@ -385,13 +383,12 @@ async def update_config(config: SystemConfig, token: str = Depends(verify_token)
         row = await conn.fetchrow(
             """
             UPDATE system_config
-            SET run_hour = $1, run_minute = $2, default_multiplier = $3, dry_run = $4
+            SET run_hour = $1, run_minute = $2, dry_run = $3
             WHERE id = 1
             RETURNING *
             """,
             config.run_hour,
             config.run_minute,
-            config.default_multiplier,
             config.dry_run
         )
         
