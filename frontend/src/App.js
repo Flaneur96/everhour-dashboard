@@ -162,18 +162,6 @@ const Dashboard = () => {
     }
   };
 
-  // Manual trigger
-  const triggerUpdate = async () => {
-    if (!window.confirm('Czy na pewno chcesz ręcznie uruchomić aktualizację?')) return;
-
-    try {
-      const response = await fetch(`${API_URL}/api/trigger-update`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${API_TOKEN}`
-        }
-      });
-
       if (response.ok) {
         alert('Aktualizacja została uruchomiona!');
       }
